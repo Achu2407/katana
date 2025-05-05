@@ -208,6 +208,11 @@ func (s *Shared) Do(crawlSession *CrawlSession, doRequest DoRequestFunc) error {
 			continue
 		}
 
+		if !s.Options.ValidatePath(req.URL) {
+			gologger.Debug().Msgf("`%v` filtered path. skipping", req.URL)
+			continue
+		}
+
 		inScope, scopeErr := s.Options.ValidateScope(req.URL, crawlSession.Hostname)
 		if scopeErr != nil {
 			gologger.Debug().Msgf("Error validating scope for `%v`: %v. skipping", req.URL, scopeErr)
@@ -219,7 +224,7 @@ func (s *Shared) Do(crawlSession *CrawlSession, doRequest DoRequestFunc) error {
 		}
 
 		wg.Add()
-		// gologger.Debug().Msgf("Visting: %v", req.URL) // not sure if this is needed
+		// gologger.Debug().Msgf("Visiting: %v", req.URL) // not sure if this is needed
 		go func() {
 			defer wg.Done()
 
