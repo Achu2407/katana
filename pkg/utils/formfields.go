@@ -14,6 +14,7 @@ import (
 func ParseFormFields(document *goquery.Document) []navigation.Form {
 	var forms []navigation.Form
 
+	
 	document.Find("form").Each(func(i int, formElem *goquery.Selection) {
 		form := navigation.Form{}
 
