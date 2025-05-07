@@ -45,6 +45,7 @@ func (r *Runner) ExecuteCrawling() error {
 			r.state.InFlightUrls.Delete(input)
 		}(input)
 	}
+	
 	wg.Wait()
 	return nil
 }
