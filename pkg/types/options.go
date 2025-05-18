@@ -45,6 +45,8 @@ type Options struct {
 	BodyReadSize int
 	// Timeout is the time to wait for request in seconds
 	Timeout int
+	// TimeStable is the time to wait until the page is stable
+	TimeStable int
 	// CrawlDuration is the duration in seconds to crawl target from
 	CrawlDuration time.Duration
 	// Delay is the delay between each crawl requests in seconds
@@ -85,6 +87,8 @@ type Options struct {
 	Silent bool
 	// Verbose specifies showing verbose output
 	Verbose bool
+	// TechDetect enables technology detection
+	TechDetect bool
 	// Version enables showing of crawler version
 	Version bool
 	// ScrapeJSResponses enables scraping of relative endpoints from javascript
@@ -133,6 +137,8 @@ type Options struct {
 	XhrExtraction bool
 	// HealthCheck determines if a self-healthcheck should be performed
 	HealthCheck bool
+	// PprofServer enables pprof server
+	PprofServer bool
 	// ErrorLogFile specifies a file to write with the errors of all requests
 	ErrorLogFile string
 	// Resolvers contains custom resolvers

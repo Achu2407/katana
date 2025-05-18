@@ -11,6 +11,9 @@ import (
 
 // ExecuteCrawling executes the crawling main loop
 func (r *Runner) ExecuteCrawling() error {
+	if r.crawler == nil {
+		return errorutil.New("crawler is not initialized")
+	}
 	inputs := r.parseInputs()
 	if len(inputs) == 0 {
 		return errorutil.New("no input provided for crawling")
@@ -19,7 +22,11 @@ func (r *Runner) ExecuteCrawling() error {
 		_ = r.state.InFlightUrls.Set(addSchemeIfNotExists(input), struct{}{})
 	}
 
-	defer r.crawler.Close()
+	defer func() {
+		if err := r.crawler.Close(); err != nil {
+			gologger.Error().Msgf("Error closing crawler: %v\n", err)
+		}
+	}()
 
 	wg := sizedwaitgroup.New(r.options.Parallelism)
 	for _, input := range inputs {

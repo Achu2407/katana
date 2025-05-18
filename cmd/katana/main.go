@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,6 +17,7 @@ import (
 	errorutil "github.com/projectdiscovery/utils/errors"
 	fileutil "github.com/projectdiscovery/utils/file"
 	folderutil "github.com/projectdiscovery/utils/folder"
+	pprofutils "github.com/projectdiscovery/utils/pprof"
 	"github.com/rs/xid"
 )
 
@@ -44,7 +44,11 @@ func main() {
 		}
 		gologger.Fatal().Msgf("could not create runner: %s\n", err)
 	}
-	defer katanaRunner.Close()
+	defer func() {
+		if err := katanaRunner.Close(); err != nil {
+			gologger.Error().Msgf("Error closing katana runner: %v\n", err)
+		}
+	}()
 
 	// close handler
 	resumeFilename := defaultResumeFilename()
@@ -53,7 +57,9 @@ func main() {
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 		for range c {
 			gologger.DefaultLogger.Info().Msg("- Ctrl+C pressed in Terminal")
-			katanaRunner.Close()
+			if err := katanaRunner.Close(); err != nil {
+				gologger.Error().Msgf("Error closing katana runner: %v\n", err)
+			}
 
 			gologger.Info().Msgf("Creating resume file: %s\n", resumeFilename)
 			err := katanaRunner.SaveState(resumeFilename)
@@ -64,6 +70,15 @@ func main() {
 			os.Exit(0)
 		}
 	}()
+
+	var pprofServer *pprofutils.PprofServer
+	if options.PprofServer {
+		pprofServer = pprofutils.NewPprofServer()
+		pprofServer.Start()
+	}
+	if pprofServer != nil {
+		defer pprofServer.Stop()
+	}
 
 	if err := katanaRunner.ExecuteCrawling(); err != nil {
 		gologger.Fatal().Msgf("could not execute crawling: %s", err)
@@ -78,10 +93,12 @@ func main() {
 
 	// remove the resume file in case it exists
 	if fileutil.FileExists(resumeFilename) {
-		os.Remove(resumeFilename)
+		_ = os.Remove(resumeFilename)
 	}
 
 }
+
+const defaultBodyReadSize = 4 * 1024 * 1024
 
 func readFlags() (*goflags.FlagSet, error) {
 	flagSet := goflags.NewFlagSet()
@@ -101,12 +118,14 @@ pipelines offering both headless and non-headless crawling.`)
 		flagSet.BoolVarP(&options.ScrapeJSLuiceResponses, "jsluice", "jsl", false, "enable jsluice parsing in javascript file (memory intensive)"),
 		flagSet.DurationVarP(&options.CrawlDuration, "crawl-duration", "ct", 0, "maximum duration to crawl the target for (s, m, h, d) (default s)"),
 		flagSet.StringVarP(&options.KnownFiles, "known-files", "kf", "", "enable crawling of known files (all,robotstxt,sitemapxml), a minimum depth of 3 is required to ensure all known files are properly crawled."),
-		flagSet.IntVarP(&options.BodyReadSize, "max-response-size", "mrs", math.MaxInt, "maximum response size to read"),
+		flagSet.IntVarP(&options.BodyReadSize, "max-response-size", "mrs", defaultBodyReadSize, "maximum response size to read"),
 		flagSet.IntVar(&options.Timeout, "timeout", 10, "time to wait for request in seconds"),
+		flagSet.IntVar(&options.TimeStable, "time-stable", 1, "time to wait until the page is stable in seconds"),
 		flagSet.BoolVarP(&options.AutomaticFormFill, "automatic-form-fill", "aff", false, "enable automatic form filling (experimental)"),
 		flagSet.BoolVarP(&options.FormExtraction, "form-extraction", "fx", false, "extract form, input, textarea & select elements in jsonl output"),
 		flagSet.IntVar(&options.Retries, "retry", 1, "number of times to retry the request"),
 		flagSet.StringVar(&options.Proxy, "proxy", "", "http/socks5 proxy to use"),
+		flagSet.BoolVarP(&options.TechDetect, "tech-detect", "td", false, "enable technology detection"),
 		flagSet.StringSliceVarP(&options.CustomHeaders, "headers", "H", nil, "custom header/cookie to include in all http request in header:value format (file)", goflags.FileStringSliceOptions),
 		flagSet.StringVar(&cfgFile, "config", "", "path to the katana configuration file"),
 		flagSet.StringVarP(&options.FormConfig, "form-config", "fc", "", "path to custom form configuration file"),
@@ -120,6 +139,7 @@ pipelines offering both headless and non-headless crawling.`)
 	flagSet.CreateGroup("debug", "Debug",
 		flagSet.BoolVarP(&options.HealthCheck, "hc", "health-check", false, "run diagnostic check up"),
 		flagSet.StringVarP(&options.ErrorLogFile, "error-log", "elog", "", "file to write sent requests error log"),
+		flagSet.BoolVar(&options.PprofServer, "pprof-server", false, "enable pprof server"),
 	)
 
 	flagSet.CreateGroup("headless", "Headless",
